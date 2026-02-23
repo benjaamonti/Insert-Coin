@@ -23,11 +23,12 @@ export interface ShutTheBoxData {
       numbers: number[];
       name: string;
       score: number;
+      isFinished?: boolean;
     };
   };
-  lastRoll?: number;
+  lastRoll?: number | null;
   diceAnimating?: boolean;
-  winner?: string;
+  winner?: string | 'tie';
 }
 
 export interface GuessNumberData {
