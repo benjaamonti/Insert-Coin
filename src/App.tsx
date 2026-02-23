@@ -16,9 +16,11 @@ function GameApp() {
   const { playerName, playerId, isLoaded, savePlayerName } = usePlayerName();
   const [currentGame, setCurrentGame] = useState<GameType | null>(null);
   const [view, setView] = useState<'home' | 'room' | 'game'>('home');
+  const [roomCode, setRoomCode] = useState<string | null>(localStorage.getItem('currentRoomCode'));
   
   const { 
     room, 
+    loading: roomLoading,
     error, 
     createRoom, 
     joinRoom, 
@@ -28,13 +30,20 @@ function GameApp() {
     endGame,
     resetRoom 
   } = useRoom(
-    view === 'game' ? localStorage.getItem('currentRoomCode') : null,
+    roomCode,
     playerId && playerName ? { id: playerId, name: playerName, isHost: false } : null
   );
 
   useEffect(() => {
     if (error) {
       toast.error(error);
+      if (error === 'Sala no encontrada') {
+        localStorage.removeItem('currentRoomCode');
+        localStorage.removeItem('currentGame');
+        setRoomCode(null);
+        setCurrentGame(null);
+        setView('home');
+      }
     }
   }, [error]);
 
@@ -44,6 +53,7 @@ function GameApp() {
     
     if (storedRoomCode && storedGame && playerName) {
       setCurrentGame(storedGame);
+      setRoomCode(storedRoomCode);
       setView('game');
     }
   }, [playerName]);
@@ -59,10 +69,11 @@ function GameApp() {
   };
 
   const handleGoHome = () => {
-    if (view === 'game') {
+    if (view === 'game' || roomCode) {
       leaveRoom();
       localStorage.removeItem('currentRoomCode');
       localStorage.removeItem('currentGame');
+      setRoomCode(null);
     }
     setCurrentGame(null);
     setView('home');
@@ -78,6 +89,7 @@ function GameApp() {
     const code = await createRoom(gameType, player);
     localStorage.setItem('currentRoomCode', code);
     localStorage.setItem('currentGame', gameType);
+    setRoomCode(code);
     toast.success('¡Sala creada! Comparte el código con tu amigo.');
   };
 
@@ -92,6 +104,7 @@ function GameApp() {
     if (success) {
       localStorage.setItem('currentRoomCode', code);
       localStorage.setItem('currentGame', room?.gameType || 'shut-the-box');
+      setRoomCode(code);
       setView('game');
       toast.success('¡Te uniste a la sala!');
     }
@@ -155,6 +168,7 @@ function GameApp() {
     setView('room');
     localStorage.removeItem('currentRoomCode');
     localStorage.removeItem('currentGame');
+    setRoomCode(null);
   };
 
   if (!isLoaded) {
@@ -291,13 +305,19 @@ function GameApp() {
               <RoomManager
                 onCreateRoom={handleCreateRoom}
                 onJoinRoom={handleJoinRoom}
-                roomCode={room?.code || null}
+                roomCode={roomCode || room?.code || null}
                 onBack={() => setView('home')}
               />
             </motion.div>
           )}
 
-          {view === 'game' && room && currentGame && (
+          {view === 'game' && roomLoading && (
+            <motion.div key="loading" className="flex justify-center items-center py-20">
+               <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            </motion.div>
+          )}
+
+          {view === 'game' && !roomLoading && room && currentGame && (
             <motion.div
               key="game"
               initial={{ opacity: 0 }}
