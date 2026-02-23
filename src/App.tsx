@@ -125,7 +125,8 @@ function GameApp() {
         data.players[p.id] = {
           numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
           name: p.name,
-          score: 78
+          score: 78,
+          isFinished: false
         };
       });
       return data;
@@ -155,6 +156,8 @@ function GameApp() {
     endGame(winnerId);
     if (winnerId === playerId) {
       toast.success('¡Ganaste la partida! 🎉');
+    } else if (winnerId === 'tie') {
+      toast.info('¡El juego terminó en empate!');
     } else if (winnerId) {
       toast.info('¡Juego terminado!');
     }
