@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Dices, RotateCcw, Trophy, ArrowRight, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import type { Room, Player, ShutTheBoxData } from '@/types';
 import { Dice } from './Dice';
 import { NumberTile } from './NumberTile';
@@ -67,19 +68,56 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
         const myNumbers = gameData.players[currentPlayer.id].numbers;
         const canContinue = canMakeMove(sum, myNumbers);
         
-        const newGameData: ShutTheBoxData = {
-          ...gameData,
-          lastRoll: sum,
-          diceAnimating: false
-        };
-        
-        onUpdateGame(newGameData);
-        
         if (!canContinue) {
+          toast.error('¡No hay jugadas posibles! Fin de tu turno.');
+          
+          // Mostramos los dados un instante antes de finalizar su turno
+          onUpdateGame({
+            ...gameData,
+            lastRoll: sum,
+            diceAnimating: false
+          });
+
           setTimeout(() => {
-            const winner = opponentId;
-            onEndGame(winner);
-          }, 1500);
+            const newScore = myNumbers.reduce((a, b) => a + b, 0);
+            const oppIsFinished = opponentData?.isFinished;
+
+            const newGameData: ShutTheBoxData = {
+              ...gameData,
+              lastRoll: null as any,
+              players: {
+                ...gameData.players,
+                [currentPlayer.id]: {
+                  ...gameData.players[currentPlayer.id],
+                  isFinished: true,
+                  score: newScore
+                }
+              }
+            };
+
+            if (oppIsFinished) {
+              // Ambos terminaron, calcular ganador
+              const oppScore = opponentData.score;
+              let finalWinner = 'tie';
+              if (newScore < oppScore) finalWinner = currentPlayer.id;
+              else if (oppScore < newScore) finalWinner = opponentId!;
+              
+              onUpdateGame(newGameData);
+              onEndGame(finalWinner);
+            } else {
+              // El oponente aún no termina, le cedemos el turno
+              newGameData.currentTurn = opponentId!;
+              onUpdateGame(newGameData);
+            }
+          }, 2500); // Darles 2.5 segundos para que vean el resultado y asimilen que no tienen movimientos
+          
+        } else {
+          // Tirada normal
+          onUpdateGame({
+            ...gameData,
+            lastRoll: sum,
+            diceAnimating: false
+          });
         }
       }
     }, 100);
@@ -108,7 +146,31 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
 
     const myNumbers = gameData.players[currentPlayer.id].numbers;
     const newNumbers = myNumbers.filter(n => !selectedNumbers.includes(n));
-    
+    const newScore = newNumbers.reduce((a, b) => a + b, 0);
+
+    if (newNumbers.length === 0) {
+      // Limpió su tabla, victoria instantánea y termina para ambos
+      const newGameData: ShutTheBoxData = {
+        ...gameData,
+        players: {
+          ...gameData.players,
+          [currentPlayer.id]: {
+            ...gameData.players[currentPlayer.id],
+            numbers: newNumbers,
+            score: newScore,
+            isFinished: true
+          }
+        },
+        lastRoll: null as any
+      };
+      onUpdateGame(newGameData);
+      onEndGame(currentPlayer.id);
+      return;
+    }
+
+    // Si el oponente ya está 'isFinished', nos mantenemos en el turno de 'currentPlayer.id'
+    const nextTurn = opponentData?.isFinished ? currentPlayer.id : (opponentId || currentPlayer.id);
+
     const newGameData: ShutTheBoxData = {
       ...gameData,
       players: {
@@ -116,19 +178,15 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
         [currentPlayer.id]: {
           ...gameData.players[currentPlayer.id],
           numbers: newNumbers,
-          score: newNumbers.reduce((a, b) => a + b, 0)
+          score: newScore
         }
       },
-      currentTurn: opponentId || currentPlayer.id,
+      currentTurn: nextTurn,
       lastRoll: null as any 
     };
 
     onUpdateGame(newGameData);
     setSelectedNumbers([]);
-
-    if (newNumbers.length === 0) {
-      onEndGame(currentPlayer.id);
-    }
   };
 
   const selectedSum = selectedNumbers.reduce((a, b) => a + b, 0);
@@ -136,21 +194,31 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
 
   if (room.status === 'finished') {
     const winner = gameData.winner;
+    const isTie = winner === 'tie';
     const isWinner = winner === currentPlayer.id;
     
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center min-h-[60vh] p-4">
-        <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', damping: 15 }} className={`w-32 h-32 rounded-full flex items-center justify-center mb-6 ${isWinner ? 'bg-gradient-to-br from-yellow-400 to-amber-600' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>
+        <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', damping: 15 }} className={`w-32 h-32 rounded-full flex items-center justify-center mb-6 ${isWinner ? 'bg-gradient-to-br from-yellow-400 to-amber-600' : isTie ? 'bg-gradient-to-br from-blue-400 to-indigo-600' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>
           <Trophy size={60} className="text-white" />
         </motion.div>
-        <h2 className="text-4xl font-bold text-white mb-2">{isWinner ? '¡Ganaste!' : '¡Juego Terminado!'}</h2>
-        <p className="text-slate-400 text-lg mb-8">{isWinner ? '¡Felicitaciones! Limpiaste tu tabla primero.' : `${gameData.players[winner!]?.name} ganó la partida`}</p>
+        <h2 className="text-4xl font-bold text-white mb-2">
+          {isTie ? '¡Es un Empate!' : isWinner ? '¡Ganaste!' : '¡Juego Terminado!'}
+        </h2>
+        <p className="text-slate-400 text-lg mb-8">
+          {isTie 
+            ? 'Ambos jugadores se estancaron y obtuvieron el mismo puntaje.' 
+            : isWinner 
+              ? '¡Felicitaciones! Lograste el puntaje más bajo de la partida.' 
+              : `${gameData.players[winner!]?.name} ganó la partida`}
+        </p>
 
         <div className="grid grid-cols-2 gap-4 mb-8 w-full max-w-md">
           {players.map(([id, data]) => (
-            <div key={id} className={`p-4 rounded-xl ${id === winner ? 'bg-yellow-500/20 border-2 border-yellow-500' : 'bg-slate-700/50'}`}>
+            <div key={id} className={`p-4 rounded-xl flex flex-col items-center ${id === winner ? 'bg-yellow-500/20 border-2 border-yellow-500' : isTie ? 'bg-blue-500/20 border-2 border-blue-500' : 'bg-slate-700/50'}`}>
               <p className="text-sm text-slate-400">{data.name}</p>
-              <p className="text-2xl font-bold text-white">{data.score} pts</p>
+              <p className="text-3xl font-bold text-white mt-1">{data.score}</p>
+              <p className="text-xs text-slate-500 mt-1">puntos</p>
             </div>
           ))}
         </div>
@@ -179,7 +247,7 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
                   <p className="text-white font-semibold">{data.name}</p>
                   <p className="text-xs text-slate-400">
                     {id === currentPlayer.id ? 'Tú' : 'Oponente'}
-                    {gameData.currentTurn === id && ' - Tu turno'}
+                    {data.isFinished ? ' (Terminó)' : (gameData.currentTurn === id ? ' - Su turno' : '')}
                   </p>
                 </div>
               </div>
@@ -269,9 +337,11 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
 
           <div className="mt-6 p-4 bg-purple-800/20 rounded-xl">
             <p className="text-purple-300 text-center">
-              {gameData.currentTurn !== currentPlayer.id 
-                ? `Esperando a que ${opponentData?.name} tire los dados...`
-                : 'Es tu turno'
+              {opponentData?.isFinished
+                ? `${opponentData.name} ya terminó. ¡Sigue tirando hasta que te quedes sin jugadas!`
+                : gameData.currentTurn !== currentPlayer.id 
+                  ? `Esperando a que ${opponentData?.name} tire los dados...`
+                  : 'Es tu turno'
               }
             </p>
           </div>
