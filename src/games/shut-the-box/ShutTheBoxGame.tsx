@@ -16,6 +16,11 @@ interface ShutTheBoxGameProps {
 
 export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, onReset }: ShutTheBoxGameProps) {
   const gameData = room.gameData as ShutTheBoxData;
+  
+  if (!gameData || !gameData.players || !gameData.players[currentPlayer.id]) {
+    return null;
+  }
+
   const isMyTurn = gameData.currentTurn === currentPlayer.id;
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
   const [rolling, setRolling] = useState(false);
@@ -115,7 +120,7 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
         }
       },
       currentTurn: opponentId || currentPlayer.id,
-      lastRoll: undefined
+      lastRoll: null as any 
     };
 
     onUpdateGame(newGameData);
@@ -134,75 +139,40 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
     const isWinner = winner === currentPlayer.id;
     
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="flex flex-col items-center justify-center min-h-[60vh] p-4"
-      >
-        <motion.div
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: 'spring', damping: 15 }}
-          className={`w-32 h-32 rounded-full flex items-center justify-center mb-6 ${
-            isWinner ? 'bg-gradient-to-br from-yellow-400 to-amber-600' : 'bg-gradient-to-br from-slate-500 to-slate-700'
-          }`}
-        >
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center min-h-[60vh] p-4">
+        <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', damping: 15 }} className={`w-32 h-32 rounded-full flex items-center justify-center mb-6 ${isWinner ? 'bg-gradient-to-br from-yellow-400 to-amber-600' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>
           <Trophy size={60} className="text-white" />
         </motion.div>
-        
-        <h2 className="text-4xl font-bold text-white mb-2">
-          {isWinner ? '¡Ganaste!' : '¡Juego Terminado!'}
-        </h2>
-        
-        <p className="text-slate-400 text-lg mb-8">
-          {isWinner 
-            ? '¡Felicitaciones! Limpiaste tu tabla primero.' 
-            : `${gameData.players[winner!]?.name} ganó la partida`}
-        </p>
+        <h2 className="text-4xl font-bold text-white mb-2">{isWinner ? '¡Ganaste!' : '¡Juego Terminado!'}</h2>
+        <p className="text-slate-400 text-lg mb-8">{isWinner ? '¡Felicitaciones! Limpiaste tu tabla primero.' : `${gameData.players[winner!]?.name} ganó la partida`}</p>
 
         <div className="grid grid-cols-2 gap-4 mb-8 w-full max-w-md">
           {players.map(([id, data]) => (
-            <div key={id} className={`p-4 rounded-xl ${
-              id === winner ? 'bg-yellow-500/20 border-2 border-yellow-500' : 'bg-slate-700/50'
-            }`}>
+            <div key={id} className={`p-4 rounded-xl ${id === winner ? 'bg-yellow-500/20 border-2 border-yellow-500' : 'bg-slate-700/50'}`}>
               <p className="text-sm text-slate-400">{data.name}</p>
               <p className="text-2xl font-bold text-white">{data.score} pts</p>
             </div>
           ))}
         </div>
 
-        <Button
-          onClick={onReset}
-          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-8 py-6 text-lg"
-        >
-          <RotateCcw className="mr-2" size={20} />
-          Jugar de Nuevo
-        </Button>
+        {currentPlayer.isHost && (
+          <Button onClick={onReset} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-8 py-6 text-lg">
+            <RotateCcw className="mr-2" size={20} />
+            Jugar de Nuevo
+          </Button>
+        )}
       </motion.div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 p-4">
-      {/* Header con nombres */}
       <div className="max-w-6xl mx-auto mb-6">
         <div className="grid grid-cols-2 gap-4">
           {players.map(([id, data], index) => (
-            <motion.div
-              key={id}
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className={`p-4 rounded-2xl ${
-                gameData.currentTurn === id
-                  ? 'bg-gradient-to-r from-amber-500/30 to-orange-500/30 border-2 border-amber-500'
-                  : 'bg-slate-700/50 border-2 border-transparent'
-              }`}
-            >
+            <motion.div key={id} initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }} className={`p-4 rounded-2xl ${gameData.currentTurn === id ? 'bg-gradient-to-r from-amber-500/30 to-orange-500/30 border-2 border-amber-500' : 'bg-slate-700/50 border-2 border-transparent'}`}>
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  id === currentPlayer.id ? 'bg-indigo-500' : 'bg-purple-500'
-                }`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${id === currentPlayer.id ? 'bg-indigo-500' : 'bg-purple-500'}`}>
                   <User size={20} className="text-white" />
                 </div>
                 <div>
@@ -218,57 +188,31 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
         </div>
       </div>
 
-      {/* Área de juego dividida */}
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Mi lado */}
-        <motion.div
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="bg-gradient-to-br from-amber-900/40 to-amber-800/30 rounded-3xl p-6 border-2 border-amber-700/50"
-        >
+        <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} className="bg-gradient-to-br from-amber-900/40 to-amber-800/30 rounded-3xl p-6 border-2 border-amber-700/50">
           <h3 className="text-amber-400 font-semibold mb-4 flex items-center gap-2">
-            <Dices size={18} />
-            Tu Tabla
+            <Dices size={18} /> Tu Tabla
           </h3>
 
-          {/* Mesa de números */}
           <div className="bg-gradient-to-br from-amber-950 to-amber-900 rounded-2xl p-6 mb-6 shadow-inner">
             <div className="grid grid-cols-6 gap-2">
               {myData?.numbers.map((num) => (
-                <NumberTile
-                  key={num}
-                  number={num}
-                  selected={selectedNumbers.includes(num)}
-                  onClick={() => toggleNumber(num)}
-                  disabled={!isMyTurn || !gameData.lastRoll || rolling}
-                />
+                <NumberTile key={num} number={num} selected={selectedNumbers.includes(num)} onClick={() => toggleNumber(num)} disabled={!isMyTurn || !gameData.lastRoll || rolling} />
               ))}
             </div>
             {myData?.numbers.length === 0 && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="text-center py-8"
-              >
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-center py-8">
                 <Trophy size={48} className="text-yellow-400 mx-auto mb-2" />
                 <p className="text-yellow-400 font-semibold">¡Tabla Limpia!</p>
               </motion.div>
             )}
           </div>
 
-          {/* Control de dados */}
           {isMyTurn && (
             <div className="space-y-4">
               {!gameData.lastRoll ? (
-                <Button
-                  onClick={rollDice}
-                  disabled={rolling}
-                  className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white py-6 text-lg"
-                >
-                  <motion.div
-                    animate={rolling ? { rotate: 360 } : {}}
-                    transition={{ duration: 0.5, repeat: rolling ? Infinity : 0 }}
-                  >
+                <Button onClick={rollDice} disabled={rolling} className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white py-6 text-lg">
+                  <motion.div animate={rolling ? { rotate: 360 } : {}} transition={{ duration: 0.5, repeat: rolling ? Infinity : 0 }}>
                     <Dices className="mr-2" size={24} />
                   </motion.div>
                   {rolling ? 'Tirando...' : 'Tirar Dados'}
@@ -280,38 +224,25 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
                     <Dice value={diceValues[1]} rolling={rolling} />
                   </div>
                   <div className="text-center">
-                    <p className="text-amber-400 text-3xl font-bold">
-                      = {gameData.lastRoll}
-                    </p>
+                    <p className="text-amber-400 text-3xl font-bold">= {gameData.lastRoll}</p>
                   </div>
                   
                   {selectedNumbers.length > 0 && (
                     <div className="text-center space-y-2">
-                      <p className="text-slate-300">
-                        Seleccionados: {selectedNumbers.join(' + ')} = {selectedSum}
-                      </p>
+                      <p className="text-slate-300">Seleccionados: {selectedNumbers.join(' + ')} = {selectedSum}</p>
                       {selectedSum === targetSum ? (
-                        <Button
-                          onClick={submitMove}
-                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-8"
-                        >
+                        <Button onClick={submitMove} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-8">
                           <ArrowRight className="mr-2" size={18} />
                           Confirmar Jugada
                         </Button>
                       ) : (
-                        <p className="text-amber-400 text-sm">
-                          Necesitas sumar {targetSum}
-                        </p>
+                        <p className="text-amber-400 text-sm">Necesitas sumar {targetSum}</p>
                       )}
                     </div>
                   )}
 
                   {showCombinationError && (
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-red-400 text-center text-sm"
-                    >
+                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-red-400 text-center text-sm">
                       La suma no coincide con el resultado de los dados
                     </motion.p>
                   )}
@@ -321,28 +252,15 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
           )}
         </motion.div>
 
-        {/* Lado del oponente */}
-        <motion.div
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="bg-gradient-to-br from-purple-900/40 to-purple-800/30 rounded-3xl p-6 border-2 border-purple-700/50"
-        >
+        <motion.div initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} className="bg-gradient-to-br from-purple-900/40 to-purple-800/30 rounded-3xl p-6 border-2 border-purple-700/50">
           <h3 className="text-purple-400 font-semibold mb-4 flex items-center gap-2">
-            <User size={18} />
-            Tabla de {opponentData?.name}
+            <User size={18} /> Tabla de {opponentData?.name}
           </h3>
 
           <div className="bg-gradient-to-br from-purple-950 to-purple-900 rounded-2xl p-6 shadow-inner">
             <div className="grid grid-cols-6 gap-2">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
-                <div
-                  key={num}
-                  className={`aspect-square rounded-lg flex items-center justify-center text-lg font-bold transition-all ${
-                    opponentData?.numbers.includes(num)
-                      ? 'bg-purple-700/50 text-purple-300 border-2 border-purple-600/50'
-                      : 'bg-purple-900/30 text-purple-900/30 border-2 border-purple-800/20'
-                  }`}
-                >
+                <div key={num} className={`aspect-square rounded-lg flex items-center justify-center text-lg font-bold transition-all ${opponentData?.numbers.includes(num) ? 'bg-purple-700/50 text-purple-300 border-2 border-purple-600/50' : 'bg-purple-900/30 text-purple-900/30 border-2 border-purple-800/20'}`}>
                   {num}
                 </div>
               ))}
