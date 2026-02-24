@@ -36,7 +36,6 @@ function GameApp() {
     playerId && playerName ? { id: playerId, name: playerName, isHost: false } : null
   );
 
-  // Expulsar si hay error
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -50,7 +49,6 @@ function GameApp() {
     }
   }, [error]);
 
-  // Recuperar sesión guardada
   useEffect(() => {
     const storedRoomCode = localStorage.getItem('currentRoomCode');
     const storedGame = localStorage.getItem('currentGame') as GameType | null;
@@ -62,7 +60,6 @@ function GameApp() {
     }
   }, [playerName]);
 
-  // Sincronizar el juego automáticamente con el de la sala si me uno a una
   useEffect(() => {
     if (room?.gameType && currentGame !== room.gameType) {
       setCurrentGame(room.gameType);
@@ -70,7 +67,6 @@ function GameApp() {
     }
   }, [room?.gameType, currentGame]);
 
-  // Ir al juego cuando la sala empiece
   useEffect(() => {
     if (room?.status === 'playing' && view !== 'game') {
       setView('game');
@@ -198,7 +194,6 @@ function GameApp() {
       <main className="pt-20 px-4 pb-8">
         <AnimatePresence mode="wait">
           
-          {/* VISTA HOME ACTUALIZADA */}
           {view === 'home' && (
             <motion.div key="home" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="max-w-4xl mx-auto">
               <div className="text-center mb-16">
@@ -253,7 +248,6 @@ function GameApp() {
             </motion.div>
           )}
 
-          {/* VISTA ROOM MANAGER ACTUALIZADA */}
           {view === 'room' && (
             <motion.div key="room" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <RoomManager 
@@ -266,7 +260,6 @@ function GameApp() {
             </motion.div>
           )}
 
-          {/* VISTA JUEGO */}
           {view === 'game' && (!room || !room.gameData || roomLoading) && (
             <motion.div key="loading" className="flex justify-center items-center py-20">
                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -292,6 +285,7 @@ function GameApp() {
                 </div>
               )}
 
+              {/* PASAMOS LA FUNCIÓN ON GOHOME */}
               {currentGame === 'shut-the-box' && (
                 <ShutTheBoxGame
                   room={room}
@@ -299,6 +293,7 @@ function GameApp() {
                   onUpdateGame={handleUpdateGame}
                   onEndGame={handleEndGame}
                   onReset={handleResetGame}
+                  onGoHome={handleGoHome}
                 />
               )}
               {currentGame === 'guess-number' && (
@@ -308,6 +303,7 @@ function GameApp() {
                   onUpdateGame={handleUpdateGame}
                   onEndGame={handleEndGame}
                   onReset={handleResetGame}
+                  onGoHome={handleGoHome}
                 />
               )}
             </motion.div>
