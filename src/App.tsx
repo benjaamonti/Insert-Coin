@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gamepad2, Sparkles, LogOut } from 'lucide-react';
+import { Coins, Plus, LogIn, LogOut } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { PlayerSetup } from '@/components/PlayerSetup';
 import { RoomManager } from '@/components/RoomManager';
@@ -16,6 +16,7 @@ function GameApp() {
   const { playerName, playerId, isLoaded, savePlayerName } = usePlayerName();
   const [currentGame, setCurrentGame] = useState<GameType | null>(null);
   const [view, setView] = useState<'home' | 'room' | 'game'>('home');
+  const [roomAction, setRoomAction] = useState<'create' | 'join'>('create');
   const [roomCode, setRoomCode] = useState<string | null>(localStorage.getItem('currentRoomCode'));
   
   const { 
@@ -35,6 +36,7 @@ function GameApp() {
     playerId && playerName ? { id: playerId, name: playerName, isHost: false } : null
   );
 
+  // Expulsar si hay error
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -48,6 +50,7 @@ function GameApp() {
     }
   }, [error]);
 
+  // Recuperar sesión guardada
   useEffect(() => {
     const storedRoomCode = localStorage.getItem('currentRoomCode');
     const storedGame = localStorage.getItem('currentGame') as GameType | null;
@@ -59,23 +62,24 @@ function GameApp() {
     }
   }, [playerName]);
 
+  // Sincronizar el juego automáticamente con el de la sala si me uno a una
+  useEffect(() => {
+    if (room?.gameType && currentGame !== room.gameType) {
+      setCurrentGame(room.gameType);
+      localStorage.setItem('currentGame', room.gameType);
+    }
+  }, [room?.gameType, currentGame]);
+
+  // Ir al juego cuando la sala empiece
   useEffect(() => {
     if (room?.status === 'playing' && view !== 'game') {
       setView('game');
-      if (room.gameType) {
-        setCurrentGame(room.gameType);
-      }
     }
-  }, [room?.status, view, room?.gameType]);
+  }, [room?.status, view]);
 
   const handleNameSubmit = (name: string) => {
     savePlayerName(name);
     toast.success(`¡Bienvenido, ${name}!`);
-  };
-
-  const handleSelectGame = (game: GameType) => {
-    setCurrentGame(game);
-    setView('room');
   };
 
   const handleGoHome = () => {
@@ -90,6 +94,7 @@ function GameApp() {
   };
 
   const handleCreateRoom = async (gameType: GameType) => {
+    setCurrentGame(gameType);
     const player: Player = { id: playerId, name: playerName, isHost: true };
     const code = await createRoom(gameType, player);
     localStorage.setItem('currentRoomCode', code);
@@ -188,68 +193,80 @@ function GameApp() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
       <Toaster position="top-center" theme="dark" />
-      <Sidebar currentGame={currentGame} onSelectGame={handleSelectGame} onGoHome={handleGoHome} />
+      <Sidebar currentGame={currentGame} onSelectGame={() => {}} onGoHome={handleGoHome} />
 
       <main className="pt-20 px-4 pb-8">
         <AnimatePresence mode="wait">
+          
+          {/* VISTA HOME ACTUALIZADA */}
           {view === 'home' && (
             <motion.div key="home" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="max-w-4xl mx-auto">
-              <div className="text-center mb-12">
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 15 }} className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl mb-6 shadow-2xl shadow-indigo-500/30">
-                  <Gamepad2 size={48} className="text-white" />
+              <div className="text-center mb-16">
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 15 }} className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-3xl mb-6 shadow-2xl shadow-amber-500/30">
+                  <Coins size={48} className="text-white" />
                 </motion.div>
-                <h1 className="text-5xl font-bold text-white mb-4">
-                  GameHub <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Multijugador</span>
+                <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">
+                  Insert <span className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Coin</span>
                 </h1>
                 <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-                  Juega con tus amigos en tiempo real. Sin registro, solo diversión.
+                  Salas privadas, juegos rápidos. Sin registros, solo diversión.
                 </p>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                <motion.button whileHover={{ scale: 1.02, y: -5 }} whileTap={{ scale: 0.98 }} onClick={() => handleSelectGame('shut-the-box')} className="group relative overflow-hidden bg-gradient-to-br from-amber-900/50 to-orange-900/50 border-2 border-amber-700/50 rounded-3xl p-8 text-left transition-all hover:border-amber-500 hover:shadow-2xl hover:shadow-amber-500/20">
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                <motion.button 
+                  whileHover={{ scale: 1.02, y: -5 }} 
+                  whileTap={{ scale: 0.98 }} 
+                  onClick={() => { setRoomAction('create'); setView('room'); }} 
+                  className="group relative overflow-hidden bg-gradient-to-br from-indigo-900/50 to-purple-900/50 border-2 border-indigo-700/50 rounded-3xl p-8 text-center transition-all hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-500/20"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div className="relative">
-                    <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center mb-4">
-                      <span className="text-3xl">🎲</span>
+                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4 mx-auto">
+                      <Plus size={32} className="text-white" />
                     </div>
-                    <h3 className="text-2xl font-bold text-white mb-2">Shut the Box</h3>
-                    <p className="text-slate-400 mb-4">Tira los dados y elimina números de tu tabla. El primero en limpiarla gana.</p>
-                    <div className="flex items-center gap-2 text-amber-400">
-                      <Sparkles size={16} />
-                      <span className="text-sm">2 jugadores</span>
-                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Crear Sala</h3>
+                    <p className="text-slate-400">Elige un juego, crea una sala e invita a tu amigo con un código.</p>
                   </div>
                 </motion.button>
 
-                <motion.button whileHover={{ scale: 1.02, y: -5 }} whileTap={{ scale: 0.98 }} onClick={() => handleSelectGame('guess-number')} className="group relative overflow-hidden bg-gradient-to-br from-emerald-900/50 to-teal-900/50 border-2 border-emerald-700/50 rounded-3xl p-8 text-left transition-all hover:border-emerald-500 hover:shadow-2xl hover:shadow-emerald-500/20">
+                <motion.button 
+                  whileHover={{ scale: 1.02, y: -5 }} 
+                  whileTap={{ scale: 0.98 }} 
+                  onClick={() => { setRoomAction('join'); setView('room'); }} 
+                  className="group relative overflow-hidden bg-gradient-to-br from-emerald-900/50 to-teal-900/50 border-2 border-emerald-700/50 rounded-3xl p-8 text-center transition-all hover:border-emerald-500 hover:shadow-2xl hover:shadow-emerald-500/20"
+                >
                   <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div className="relative">
-                    <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mb-4">
-                      <span className="text-3xl">🎯</span>
+                    <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mb-4 mx-auto">
+                      <LogIn size={32} className="text-white" />
                     </div>
-                    <h3 className="text-2xl font-bold text-white mb-2">Adivina el Número</h3>
-                    <p className="text-slate-400 mb-4">Elige un número secreto y adivina el de tu oponente. ¿Podrás descifrarlo?</p>
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <Sparkles size={16} />
-                      <span className="text-sm">2 jugadores</span>
-                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Unirse a Sala</h3>
+                    <p className="text-slate-400">Ingresa el código de 6 letras que te compartieron para empezar a jugar.</p>
                   </div>
                 </motion.button>
               </div>
 
-              <div className="mt-12 text-center">
-                <p className="text-slate-500">Jugando como <span className="text-indigo-400 font-semibold">{playerName}</span></p>
+              <div className="mt-16 text-center">
+                <p className="text-slate-500">Jugando como <span className="text-amber-400 font-semibold">{playerName}</span></p>
               </div>
             </motion.div>
           )}
 
-          {view === 'room' && currentGame && (
+          {/* VISTA ROOM MANAGER ACTUALIZADA */}
+          {view === 'room' && (
             <motion.div key="room" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-              <RoomManager onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} roomCode={roomCode || room?.code || null} onBack={() => setView('home')} />
+              <RoomManager 
+                initialAction={roomAction}
+                onCreateRoom={handleCreateRoom} 
+                onJoinRoom={handleJoinRoom} 
+                roomCode={roomCode || room?.code || null} 
+                onBack={() => setView('home')} 
+              />
             </motion.div>
           )}
 
+          {/* VISTA JUEGO */}
           {view === 'game' && (!room || !room.gameData || roomLoading) && (
             <motion.div key="loading" className="flex justify-center items-center py-20">
                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -259,7 +276,6 @@ function GameApp() {
           {view === 'game' && !roomLoading && room && room.gameData && currentGame && (
             <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               
-              {/* BOTÓN ABANDONAR */}
               {room.status === 'playing' && (
                 <div className="max-w-6xl mx-auto flex justify-end mb-4">
                   <button 
