@@ -78,15 +78,30 @@ function GameApp() {
     toast.success(`¡Bienvenido, ${name}!`);
   };
 
-  const handleGoHome = () => {
-    if (view === 'game' || roomCode) {
-      leaveRoom();
-      localStorage.removeItem('currentRoomCode');
-      localStorage.removeItem('currentGame');
-      setRoomCode(null);
+  const handleGoHome = async () => {
+    if (roomCode) {
+      if (room?.status === 'playing') {
+        await abandonGame();
+      } else {
+        await leaveRoom();
+      }
     }
+    localStorage.removeItem('currentRoomCode');
+    localStorage.removeItem('currentGame');
+    setRoomCode(null);
     setCurrentGame(null);
     setView('home');
+  };
+
+  // NUEVA FUNCIÓN: Unifica las validaciones antes de volver al inicio
+  const requestGoHome = () => {
+    if (room?.status === 'playing') {
+      if (window.confirm('¿Estás seguro que deseas abandonar la partida? Tu oponente ganará automáticamente.')) {
+        handleGoHome();
+      }
+    } else {
+      handleGoHome();
+    }
   };
 
   const handleCreateRoom = async (gameType: GameType) => {
@@ -121,8 +136,8 @@ function GameApp() {
     if (gameType === 'shut-the-box') {
       const data: ShutTheBoxData = {
         currentTurn: players[0].id,
-        selectedNumbers: [], // NUEVO
-        isRolling: false,    // NUEVO
+        selectedNumbers: [],
+        isRolling: false,
         players: {}
       };
       players.forEach(p => {
@@ -191,7 +206,7 @@ function GameApp() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
       <Toaster position="top-center" theme="dark" />
-      <Sidebar currentGame={currentGame} onSelectGame={() => {}} onGoHome={handleGoHome} />
+      <Sidebar currentGame={currentGame} onSelectGame={() => {}} onGoHome={requestGoHome} />
 
       <main className="pt-20 px-4 pb-8">
         <AnimatePresence mode="wait">
@@ -257,7 +272,7 @@ function GameApp() {
                 onCreateRoom={handleCreateRoom} 
                 onJoinRoom={handleJoinRoom} 
                 roomCode={roomCode || room?.code || null} 
-                onBack={() => setView('home')} 
+                onBack={requestGoHome} 
               />
             </motion.div>
           )}
@@ -274,11 +289,7 @@ function GameApp() {
               {room.status === 'playing' && (
                 <div className="max-w-6xl mx-auto flex justify-end mb-4">
                   <button 
-                    onClick={() => {
-                      if (window.confirm('¿Estás seguro que deseas abandonar la partida? Tu oponente ganará automáticamente.')) {
-                        abandonGame();
-                      }
-                    }}
+                    onClick={requestGoHome}
                     className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors border border-red-500/20"
                   >
                     <LogOut size={16} />
@@ -294,7 +305,7 @@ function GameApp() {
                   onUpdateGame={handleUpdateGame}
                   onEndGame={handleEndGame}
                   onReset={handleResetGame}
-                  onGoHome={handleGoHome}
+                  onGoHome={requestGoHome}
                 />
               )}
               {currentGame === 'guess-number' && (
@@ -304,7 +315,7 @@ function GameApp() {
                   onUpdateGame={handleUpdateGame}
                   onEndGame={handleEndGame}
                   onReset={handleResetGame}
-                  onGoHome={handleGoHome}
+                  onGoHome={requestGoHome}
                 />
               )}
             </motion.div>
