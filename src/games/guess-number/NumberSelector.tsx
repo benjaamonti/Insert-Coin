@@ -1,16 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronUp, ChevronDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface NumberSelectorProps {
-  value: number;
+  value: number | '';
   onChange: (value: number) => void;
   onConfirm: () => void;
 }
 
 export function NumberSelector({ value, onChange, onConfirm }: NumberSelectorProps) {
-  const [tempValue, setTempValue] = useState(value || 50);
+  const [tempValue, setTempValue] = useState<number>(typeof value === 'number' ? value : 50);
+
+  // Solución al 50 fantasma: Avisar al componente padre apenas se renderiza
+  useEffect(() => {
+    if (value === '') {
+      onChange(50);
+    }
+  }, []); // Se ejecuta solo al montar el componente
 
   const increment = () => {
     const newValue = Math.min(tempValue + 1, 100);
