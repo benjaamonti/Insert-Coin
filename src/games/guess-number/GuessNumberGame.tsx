@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, Check, RotateCcw, Trophy, Lock, User, Target } from 'lucide-react';
+import { ArrowUp, Check, RotateCcw, Trophy, Lock, User, Target, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Room, Player, GuessNumberData, Guess } from '@/types';
@@ -13,9 +13,10 @@ interface GuessNumberGameProps {
   onUpdateGame: (data: GuessNumberData) => void;
   onEndGame: (winnerId?: string) => void;
   onReset: () => void;
+  onGoHome: () => void; // NUEVO
 }
 
-export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, onReset }: GuessNumberGameProps) {
+export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, onReset, onGoHome }: GuessNumberGameProps) {
   const gameData = room.gameData as GuessNumberData;
 
   if (!gameData || !gameData.players || !gameData.players[currentPlayer.id]) {
@@ -35,7 +36,6 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
   const myGuesses = myData.guesses || [];
   const opponentGuesses = opponentData?.guesses || [];
 
-  // Forzamos el orden: Tú a la izquierda, Oponente a la derecha
   const displayPlayers = [
     { id: currentPlayer.id, data: myData },
     ...(opponentId && opponentData ? [{ id: opponentId, data: opponentData }] : [])
@@ -171,7 +171,7 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
     );
   }
 
-  // Pantalla de fin del juego
+  // Lógica de PANTALLA FINAL y VOTACIÓN
   if (room.status === 'finished') {
     const winner = gameData.winner;
     if (!winner) return null;
@@ -179,24 +179,39 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
     const isWinner = winner === currentPlayer.id;
     const loserId = winner === currentPlayer.id ? opponentId : currentPlayer.id;
 
+    // Control de votos y salidas
+    const opponentLeft = room.players.length < 2;
+    const votes = gameData.playAgainVotes || [];
+    const hasVoted = votes.includes(currentPlayer.id);
+
+    const handlePlayAgain = () => {
+      if (votes.length === 1 && !hasVoted) {
+        onReset(); // El otro ya votó, iniciamos directo
+      } else {
+        onUpdateGame({
+          ...gameData,
+          playAgainVotes: [...votes, currentPlayer.id]
+        });
+      }
+    };
+
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center min-h-[60vh] p-4">
         <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', damping: 15 }} className={`w-32 h-32 rounded-full flex items-center justify-center mb-6 ${isWinner ? 'bg-gradient-to-br from-yellow-400 to-amber-600' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>
           <Trophy size={60} className="text-white" />
         </motion.div>
         <h2 className="text-4xl font-bold text-white mb-2">{isWinner ? '¡Ganaste!' : '¡Juego Terminado!'}</h2>
-        <p className="text-slate-400 text-lg mb-8">
-          {isWinner ? `¡Adivinaste el número en ${myGuesses.length} intentos!` : `${opponentData?.name} adivinó tu número en ${opponentGuesses.length} intentos`}
+        <p className="text-slate-400 text-lg mb-8 text-center">
+          {isWinner ? `¡Adivinaste el número en ${myGuesses.length} intentos!` : `${opponentData?.name || 'El oponente'} adivinó tu número en ${opponentGuesses.length} intentos`}
         </p>
 
-        {/* Cajas con ambos números y centrados */}
         <div className="grid grid-cols-2 gap-4 w-full max-w-md mb-8">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3 }} className="bg-emerald-500/20 border-2 border-emerald-500 rounded-xl p-6 flex flex-col items-center justify-center text-center">
-            <p className="text-emerald-400 text-sm mb-1">{isWinner ? 'Tu número' : `Número de ${gameData.players[winner].name}`}</p>
-            <p className="text-5xl font-bold text-white">{gameData.players[winner].secretNumber}</p>
+            <p className="text-emerald-400 text-sm mb-1">{isWinner ? 'Tu número' : `Número de ${gameData.players[winner]?.name || 'Ganador'}`}</p>
+            <p className="text-5xl font-bold text-white">{gameData.players[winner]?.secretNumber}</p>
           </motion.div>
 
-          {loserId && (
+          {loserId && gameData.players[loserId] && (
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.4 }} className="bg-slate-700/50 border-2 border-slate-600 rounded-xl p-6 flex flex-col items-center justify-center text-center">
               <p className="text-slate-400 text-sm mb-1">{!isWinner ? 'Tu número' : `Número de ${gameData.players[loserId].name}`}</p>
               <p className="text-5xl font-bold text-slate-300">{gameData.players[loserId].secretNumber}</p>
@@ -204,16 +219,48 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
           )}
         </div>
 
-        {currentPlayer.isHost && (
-          <Button onClick={onReset} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-8 py-6 text-lg">
-            <RotateCcw className="mr-2" size={20} /> Jugar de Nuevo
-          </Button>
-        )}
+        {/* CONTROLES DE FIN DE PARTIDA */}
+        <div className="flex flex-col gap-4 mt-2 w-full max-w-sm">
+          {opponentLeft ? (
+            <div className="text-center space-y-4">
+              <p className="text-amber-400 font-semibold bg-amber-500/10 py-3 rounded-lg border border-amber-500/20">
+                El oponente abandonó la sala.
+              </p>
+              <Button onClick={onGoHome} className="w-full bg-slate-700 hover:bg-slate-600 text-white py-6 text-lg">
+                <LogOut className="mr-2" size={20} />
+                Volver al Inicio
+              </Button>
+            </div>
+          ) : hasVoted ? (
+            <div className="text-center space-y-4">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 py-3 rounded-lg">
+                <p className="text-emerald-400 font-semibold flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                  Esperando a que el oponente acepte...
+                </p>
+              </div>
+              <Button onClick={onGoHome} variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 py-6 text-lg">
+                <LogOut className="mr-2" size={20} />
+                Salir al Inicio
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <Button onClick={handlePlayAgain} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-6 text-lg">
+                <RotateCcw className="mr-2" size={20} />
+                Jugar de Nuevo
+              </Button>
+              <Button onClick={onGoHome} variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 py-6 text-lg">
+                <LogOut className="mr-2" size={20} />
+                Volver al Inicio
+              </Button>
+            </div>
+          )}
+        </div>
       </motion.div>
     );
   }
 
-  // Pantalla principal del juego
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 p-4">
       <div className="max-w-6xl mx-auto mb-6">
