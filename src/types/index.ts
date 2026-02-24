@@ -11,6 +11,8 @@ export interface Room {
   players: Player[];
   status: 'waiting' | 'playing' | 'finished';
   createdAt: number;
+  lastActivity?: number; // Para controlar los 15 min de inactividad
+  pings?: Record<string, number>; // Para controlar los 2 min sin jugadores
   gameData?: ShutTheBoxData | GuessNumberData;
 }
 
