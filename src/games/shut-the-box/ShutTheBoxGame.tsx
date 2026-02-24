@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Dices, RotateCcw, Trophy, ArrowRight, User } from 'lucide-react';
+import { Dices, RotateCcw, Trophy, ArrowRight, User, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import type { Room, Player, ShutTheBoxData } from '@/types';
@@ -13,9 +13,10 @@ interface ShutTheBoxGameProps {
   onUpdateGame: (data: ShutTheBoxData) => void;
   onEndGame: (winnerId?: string) => void;
   onReset: () => void;
+  onGoHome: () => void; // NUEVO
 }
 
-export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, onReset }: ShutTheBoxGameProps) {
+export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, onReset, onGoHome }: ShutTheBoxGameProps) {
   const gameData = room.gameData as ShutTheBoxData;
   
   if (!gameData || !gameData.players || !gameData.players[currentPlayer.id]) {
@@ -71,7 +72,6 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
         if (!canContinue) {
           toast.error('¡No hay jugadas posibles! Fin de tu turno.');
           
-          // Mostramos los dados un instante antes de finalizar su turno
           onUpdateGame({
             ...gameData,
             lastRoll: sum,
@@ -96,7 +96,6 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
             };
 
             if (oppIsFinished) {
-              // Ambos terminaron, calcular ganador
               const oppScore = opponentData.score;
               let finalWinner = 'tie';
               if (newScore < oppScore) finalWinner = currentPlayer.id;
@@ -105,14 +104,12 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
               onUpdateGame(newGameData);
               onEndGame(finalWinner);
             } else {
-              // El oponente aún no termina, le cedemos el turno
               newGameData.currentTurn = opponentId!;
               onUpdateGame(newGameData);
             }
-          }, 2500); // Darles 2.5 segundos para que vean el resultado y asimilen que no tienen movimientos
+          }, 2500); 
           
         } else {
-          // Tirada normal
           onUpdateGame({
             ...gameData,
             lastRoll: sum,
@@ -149,7 +146,6 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
     const newScore = newNumbers.reduce((a, b) => a + b, 0);
 
     if (newNumbers.length === 0) {
-      // Limpió su tabla, victoria instantánea y termina para ambos
       const newGameData: ShutTheBoxData = {
         ...gameData,
         players: {
@@ -168,7 +164,6 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
       return;
     }
 
-    // Si el oponente ya está 'isFinished', nos mantenemos en el turno de 'currentPlayer.id'
     const nextTurn = opponentData?.isFinished ? currentPlayer.id : (opponentId || currentPlayer.id);
 
     const newGameData: ShutTheBoxData = {
@@ -192,25 +187,44 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
   const selectedSum = selectedNumbers.reduce((a, b) => a + b, 0);
   const targetSum = gameData.lastRoll || 0;
 
+  // Lógica de PANTALLA FINAL y VOTACIÓN
   if (room.status === 'finished') {
     const winner = gameData.winner;
     const isTie = winner === 'tie';
     const isWinner = winner === currentPlayer.id;
+    
+    // Si el array de jugadores bajó a 1, significa que el otro tocó "Volver al Inicio"
+    const opponentLeft = room.players.length < 2;
+    const votes = gameData.playAgainVotes || [];
+    const hasVoted = votes.includes(currentPlayer.id);
+
+    const handlePlayAgain = () => {
+      if (votes.length === 1 && !hasVoted) {
+        onReset(); // El otro ya había votado, si yo voto, reiniciamos directo
+      } else {
+        onUpdateGame({
+          ...gameData,
+          playAgainVotes: [...votes, currentPlayer.id]
+        });
+      }
+    };
     
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center min-h-[60vh] p-4">
         <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', damping: 15 }} className={`w-32 h-32 rounded-full flex items-center justify-center mb-6 ${isWinner ? 'bg-gradient-to-br from-yellow-400 to-amber-600' : isTie ? 'bg-gradient-to-br from-blue-400 to-indigo-600' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>
           <Trophy size={60} className="text-white" />
         </motion.div>
+        
         <h2 className="text-4xl font-bold text-white mb-2">
           {isTie ? '¡Es un Empate!' : isWinner ? '¡Ganaste!' : '¡Juego Terminado!'}
         </h2>
-        <p className="text-slate-400 text-lg mb-8">
+        
+        <p className="text-slate-400 text-lg mb-8 text-center max-w-md">
           {isTie 
             ? 'Ambos jugadores se estancaron y obtuvieron el mismo puntaje.' 
             : isWinner 
               ? '¡Felicitaciones! Lograste el puntaje más bajo de la partida.' 
-              : `${gameData.players[winner!]?.name} ganó la partida`}
+              : `${gameData.players[winner!]?.name || 'Tu oponente'} ganó la partida`}
         </p>
 
         <div className="grid grid-cols-2 gap-4 mb-8 w-full max-w-md">
@@ -223,12 +237,44 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
           ))}
         </div>
 
-        {currentPlayer.isHost && (
-          <Button onClick={onReset} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-8 py-6 text-lg">
-            <RotateCcw className="mr-2" size={20} />
-            Jugar de Nuevo
-          </Button>
-        )}
+        {/* CONTROLES DE FIN DE PARTIDA */}
+        <div className="flex flex-col gap-4 mt-2 w-full max-w-sm">
+          {opponentLeft ? (
+            <div className="text-center space-y-4">
+              <p className="text-amber-400 font-semibold bg-amber-500/10 py-3 rounded-lg border border-amber-500/20">
+                El oponente abandonó la sala.
+              </p>
+              <Button onClick={onGoHome} className="w-full bg-slate-700 hover:bg-slate-600 text-white py-6 text-lg">
+                <LogOut className="mr-2" size={20} />
+                Volver al Inicio
+              </Button>
+            </div>
+          ) : hasVoted ? (
+            <div className="text-center space-y-4">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 py-3 rounded-lg">
+                <p className="text-emerald-400 font-semibold flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                  Esperando a que el oponente acepte...
+                </p>
+              </div>
+              <Button onClick={onGoHome} variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 py-6 text-lg">
+                <LogOut className="mr-2" size={20} />
+                Salir al Inicio
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <Button onClick={handlePlayAgain} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-6 text-lg">
+                <RotateCcw className="mr-2" size={20} />
+                Jugar de Nuevo
+              </Button>
+              <Button onClick={onGoHome} variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 py-6 text-lg">
+                <LogOut className="mr-2" size={20} />
+                Volver al Inicio
+              </Button>
+            </div>
+          )}
+        </div>
       </motion.div>
     );
   }
