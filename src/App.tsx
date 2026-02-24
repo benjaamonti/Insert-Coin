@@ -121,6 +121,8 @@ function GameApp() {
     if (gameType === 'shut-the-box') {
       const data: ShutTheBoxData = {
         currentTurn: players[0].id,
+        selectedNumbers: [], // NUEVO
+        isRolling: false,    // NUEVO
         players: {}
       };
       players.forEach(p => {
@@ -285,7 +287,6 @@ function GameApp() {
                 </div>
               )}
 
-              {/* PASAMOS LA FUNCIÓN ON GOHOME */}
               {currentGame === 'shut-the-box' && (
                 <ShutTheBoxGame
                   room={room}
