@@ -11,8 +11,8 @@ export interface Room {
   players: Player[];
   status: 'waiting' | 'playing' | 'finished';
   createdAt: number;
-  lastActivity?: number; // Para controlar los 15 min de inactividad
-  pings?: Record<string, number>; // Para controlar los 2 min sin jugadores
+  lastActivity?: number;
+  pings?: Record<string, number>;
   gameData?: ShutTheBoxData | GuessNumberData;
 }
 
@@ -31,6 +31,7 @@ export interface ShutTheBoxData {
   lastRoll?: number | null;
   diceAnimating?: boolean;
   winner?: string | 'tie';
+  playAgainVotes?: string[]; // NUEVO: Para saber quién quiere jugar de nuevo
 }
 
 export interface GuessNumberData {
@@ -45,6 +46,7 @@ export interface GuessNumberData {
   };
   winner?: string;
   phase: 'setup' | 'playing';
+  playAgainVotes?: string[]; // NUEVO: Para saber quién quiere jugar de nuevo
 }
 
 export interface Guess {
