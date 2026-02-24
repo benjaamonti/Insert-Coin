@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Dices, RotateCcw, Trophy, ArrowRight, User, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,15 +27,24 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
   const [localRolling, setLocalRolling] = useState(false);
   const [localDiceValues, setLocalDiceValues] = useState<[number, number]>([1, 1]);
   const [showCombinationError, setShowCombinationError] = useState(false);
+  
+  // SOLUCIÓN AL LAG: Estado local para respuesta instantánea
+  const [localSelected, setLocalSelected] = useState<number[]>([]);
 
   const players = Object.entries(gameData.players);
   const myData = gameData.players[currentPlayer.id];
   const opponentId = players.find(([id]) => id !== currentPlayer.id)?.[0];
   const opponentData = opponentId ? gameData.players[opponentId] : null;
 
-  // Variables calculadas para sincronizar en tiempo real
-  const mySelected = (isMyTurn && gameData.selectedNumbers) ? gameData.selectedNumbers : [];
+  // Si es mi turno leo mi estado local (instantáneo), si es el del oponente leo Firebase
   const oppSelected = (!isMyTurn && gameData.selectedNumbers) ? gameData.selectedNumbers : [];
+
+  // Limpiar selección local si pierdo el turno
+  useEffect(() => {
+    if (!isMyTurn) {
+      setLocalSelected([]);
+    }
+  }, [isMyTurn]);
 
   const canMakeMove = (target: number, numbers: number[]): boolean => {
     const canForm = (t: number, idx: number): boolean => {
@@ -50,7 +59,8 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
     if (!isMyTurn || localRolling || gameData.lastRoll) return;
     
     setLocalRolling(true);
-    // Avisar a Firebase que los dados empezaron a girar y limpiar la mesa
+    setLocalSelected([]); // Limpiamos visualmente al instante
+
     onUpdateGame({
       ...gameData,
       isRolling: true,
@@ -91,7 +101,6 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
             isRolling: false
           });
 
-          // Damos 3 segundos para que el oponente vea qué dados te arruinaron la partida
           setTimeout(() => {
             const newScore = myNumbers.reduce((a, b) => a + b, 0);
             const oppIsFinished = opponentData?.isFinished;
@@ -140,13 +149,16 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
   const toggleNumber = (num: number) => {
     if (!isMyTurn || !gameData.lastRoll || localRolling) return;
     
-    const newSelected = mySelected.includes(num)
-      ? mySelected.filter(n => n !== num)
-      : [...mySelected, num];
+    // Calculamos el nuevo array localmente
+    const newSelected = localSelected.includes(num)
+      ? localSelected.filter(n => n !== num)
+      : [...localSelected, num];
       
+    // 1. Lo aplicamos AL INSTANTE en la pantalla
+    setLocalSelected(newSelected);
     setShowCombinationError(false);
     
-    // Subir selección a Firebase en tiempo real
+    // 2. Lo mandamos por detrás a Firebase para el oponente (sin esperar la respuesta)
     onUpdateGame({
       ...gameData,
       selectedNumbers: newSelected
@@ -154,17 +166,19 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
   };
 
   const submitMove = () => {
-    if (!isMyTurn || !gameData.lastRoll || mySelected.length === 0) return;
+    if (!isMyTurn || !gameData.lastRoll || localSelected.length === 0) return;
     
-    const sum = mySelected.reduce((a, b) => a + b, 0);
+    const sum = localSelected.reduce((a, b) => a + b, 0);
     if (sum !== gameData.lastRoll) {
       setShowCombinationError(true);
       return;
     }
 
     const myNumbers = gameData.players[currentPlayer.id].numbers;
-    const newNumbers = myNumbers.filter(n => !mySelected.includes(n));
+    const newNumbers = myNumbers.filter(n => !localSelected.includes(n));
     const newScore = newNumbers.reduce((a, b) => a + b, 0);
+
+    setLocalSelected([]); // Limpiamos estado local al confirmar
 
     if (newNumbers.length === 0) {
       const newGameData: ShutTheBoxData = {
@@ -328,7 +342,13 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
           <div className="bg-gradient-to-br from-amber-950 to-amber-900 rounded-2xl p-6 mb-6 shadow-inner">
             <div className="grid grid-cols-6 gap-2">
               {myData?.numbers.map((num) => (
-                <NumberTile key={num} number={num} selected={mySelected.includes(num)} onClick={() => toggleNumber(num)} disabled={!isMyTurn || !gameData.lastRoll || localRolling} />
+                <NumberTile 
+                  key={num} 
+                  number={num} 
+                  selected={localSelected.includes(num)} // <-- Usa el estado local
+                  onClick={() => toggleNumber(num)} 
+                  disabled={!isMyTurn || !gameData.lastRoll || localRolling} 
+                />
               ))}
             </div>
             {myData?.numbers.length === 0 && (
@@ -359,10 +379,12 @@ export function ShutTheBoxGame({ room, currentPlayer, onUpdateGame, onEndGame, o
                       <p className="text-amber-400 text-3xl font-bold">= {gameData.lastRoll}</p>
                     </div>
                     
-                    {mySelected.length > 0 && (
+                    {localSelected.length > 0 && (
                       <div className="text-center space-y-2">
-                        <p className="text-slate-300">Seleccionados: {mySelected.join(' + ')} = {mySelected.reduce((a, b) => a + b, 0)}</p>
-                        {mySelected.reduce((a,b)=>a+b,0) === gameData.lastRoll ? (
+                        <p className="text-slate-300">
+                          Seleccionados: {localSelected.join(' + ')} = {localSelected.reduce((a, b) => a + b, 0)}
+                        </p>
+                        {localSelected.reduce((a,b)=>a+b,0) === gameData.lastRoll ? (
                           <Button onClick={submitMove} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-8">
                             <ArrowRight className="mr-2" size={18} /> Confirmar Jugada
                           </Button>
