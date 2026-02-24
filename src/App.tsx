@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gamepad2, Sparkles } from 'lucide-react';
+import { Gamepad2, Sparkles, LogOut } from 'lucide-react';
 import { Sidebar } from '@/components/Sidebar';
 import { PlayerSetup } from '@/components/PlayerSetup';
 import { RoomManager } from '@/components/RoomManager';
@@ -24,7 +24,8 @@ function GameApp() {
     error, 
     createRoom, 
     joinRoom, 
-    leaveRoom, 
+    leaveRoom,
+    abandonGame,
     startGame, 
     updateGameData, 
     endGame,
@@ -257,6 +258,24 @@ function GameApp() {
 
           {view === 'game' && !roomLoading && room && room.gameData && currentGame && (
             <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              
+              {/* BOTÓN ABANDONAR */}
+              {room.status === 'playing' && (
+                <div className="max-w-6xl mx-auto flex justify-end mb-4">
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('¿Estás seguro que deseas abandonar la partida? Tu oponente ganará automáticamente.')) {
+                        abandonGame();
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors border border-red-500/20"
+                  >
+                    <LogOut size={16} />
+                    Abandonar Partida
+                  </button>
+                </div>
+              )}
+
               {currentGame === 'shut-the-box' && (
                 <ShutTheBoxGame
                   room={room}
