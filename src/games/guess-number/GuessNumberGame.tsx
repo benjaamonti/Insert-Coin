@@ -18,8 +18,7 @@ interface GuessNumberGameProps {
 export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, onReset }: GuessNumberGameProps) {
   const gameData = room.gameData as GuessNumberData;
 
-  // 1. SOLUCIÓN A LA PANTALLA EN BLANCO: 
-  // Validamos que los datos existan antes de ejecutar cualquier lógica
+  // Validación de seguridad al cargar
   if (!gameData || !gameData.players || !gameData.players[currentPlayer.id]) {
     return null;
   }
@@ -33,6 +32,11 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
   const myData = gameData.players[currentPlayer.id];
   const opponentId = players.find(([id]) => id !== currentPlayer.id)?.[0];
   const opponentData = opponentId ? gameData.players[opponentId] : null;
+
+  // PROTECCIÓN FIREBASE: Firebase elimina los arrays vacíos de la base de datos.
+  // Si no existe, usamos un array vacío por defecto para que no se rompa la app (pantalla blanca).
+  const myGuesses = myData.guesses || [];
+  const opponentGuesses = opponentData?.guesses || [];
 
   const submitSecretNumber = () => {
     if (secretNumber === '' || secretNumber < 1 || secretNumber > 100) return;
@@ -65,7 +69,8 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
     const guess = guessInput as number;
     const opponentSecret = gameData.players[opponentId].secretNumber;
     
-    if (opponentSecret === null) return;
+    // Si es null o undefined evitamos que rompa
+    if (opponentSecret == null) return;
 
     let hint: Guess['hint'];
     if (guess === opponentSecret) {
@@ -84,7 +89,7 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
         ...gameData.players,
         [currentPlayer.id]: {
           ...myData,
-          guesses: [...myData.guesses, newGuess]
+          guesses: [...myGuesses, newGuess] // Usamos nuestro array protegido
         }
       },
       currentTurn: opponentId
@@ -100,11 +105,10 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
     }
   };
 
-  // Pantalla de configuración inicial
+  // 1. Pantalla de configuración inicial (Seleccionar número)
   if (gameData.phase === 'setup' || !myData?.hasSetNumber) {
     
-    // 2. SOLUCIÓN A LA CONFIRMACIÓN INIFINITA: 
-    // Si el jugador ya confirmó, le mostramos una pantalla de espera en lugar de volver al inicio
+    // Si el jugador ya confirmó, le mostramos pantalla de espera
     if (myData?.hasSetNumber) {
       return (
         <motion.div
@@ -224,13 +228,13 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
     );
   }
 
-  // Pantalla de fin del juego
+  // 2. Pantalla de fin del juego
   if (room.status === 'finished') {
     const winner = gameData.winner;
     const isWinner = winner === currentPlayer.id;
     const winningGuess = isWinner 
-      ? myData.guesses[myData.guesses.length - 1]
-      : opponentData?.guesses[opponentData.guesses.length - 1];
+      ? myGuesses[myGuesses.length - 1]
+      : opponentGuesses[opponentGuesses.length - 1];
 
     return (
       <motion.div
@@ -255,8 +259,8 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
 
         <p className="text-slate-400 text-lg mb-4">
           {isWinner 
-            ? `¡Adivinaste el número en ${myData.guesses.length} intentos!`
-            : `${opponentData?.name} adivinó tu número en ${opponentData?.guesses.length} intentos`}
+            ? `¡Adivinaste el número en ${myGuesses.length} intentos!`
+            : `${opponentData?.name} adivinó tu número en ${opponentGuesses.length} intentos`}
         </p>
 
         {winningGuess && (
@@ -285,7 +289,7 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
     );
   }
 
-  // Pantalla principal del juego
+  // 3. Pantalla principal del juego
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 p-4">
       {/* Header */}
@@ -345,13 +349,13 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
           </div>
 
           {/* Lista de intentos */}
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {myData?.guesses.length === 0 ? (
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+            {myGuesses.length === 0 ? (
               <p className="text-slate-500 text-center py-8">
                 Aún no has hecho ningún intento
               </p>
             ) : (
-              myData?.guesses.map((guess, idx) => (
+              myGuesses.map((guess, idx) => (
                 <GuessRow key={idx} guess={guess} index={idx} />
               ))
             )}
@@ -410,13 +414,13 @@ export function GuessNumberGame({ room, currentPlayer, onUpdateGame, onEndGame, 
           </div>
 
           {/* Lista de intentos del oponente */}
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {opponentData?.guesses.length === 0 ? (
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+            {opponentGuesses.length === 0 ? (
               <p className="text-slate-500 text-center py-8">
                 {opponentData?.name} aún no ha hecho ningún intento
               </p>
             ) : (
-              opponentData?.guesses.map((guess, idx) => (
+              opponentGuesses.map((guess, idx) => (
                 <GuessRow key={idx} guess={guess} index={idx} isOpponent />
               ))
             )}
