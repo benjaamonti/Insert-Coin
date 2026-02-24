@@ -29,9 +29,11 @@ export interface ShutTheBoxData {
     };
   };
   lastRoll?: number | null;
-  diceAnimating?: boolean;
+  diceValues?: [number, number] | null; // NUEVO: Dados exactos
+  isRolling?: boolean; // NUEVO: Animación de dados global
+  selectedNumbers?: number[]; // NUEVO: Números elegidos en tiempo real
   winner?: string | 'tie';
-  playAgainVotes?: string[]; // NUEVO: Para saber quién quiere jugar de nuevo
+  playAgainVotes?: string[];
 }
 
 export interface GuessNumberData {
@@ -46,7 +48,7 @@ export interface GuessNumberData {
   };
   winner?: string;
   phase: 'setup' | 'playing';
-  playAgainVotes?: string[]; // NUEVO: Para saber quién quiere jugar de nuevo
+  playAgainVotes?: string[];
 }
 
 export interface Guess {
