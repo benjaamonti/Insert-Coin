@@ -7,12 +7,48 @@ const generateRoomCode = () => {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 };
 
+// NUEVO: Basurero automático para eliminar salas fantasma
+const cleanupGhostRooms = async () => {
+  try {
+    const roomsRef = ref(db, 'rooms');
+    const snapshot = await get(roomsRef);
+    if (!snapshot.exists()) return;
+
+    const rooms = snapshot.val();
+    const now = Date.now();
+
+    for (const [code, roomData] of Object.entries(rooms)) {
+      const r = roomData as Room;
+      const lastAct = r.lastActivity || r.createdAt;
+      
+      let shouldDelete = false;
+
+      // 1. Borrar si pasaron 15 minutos sin actividad
+      if (now - lastAct > 15 * 60 * 1000) {
+        shouldDelete = true;
+      } else {
+        // 2. Borrar si pasaron 2 minutos sin latidos (pings) de ningún jugador
+        const pings = r.pings || {};
+        const activePings = Object.values(pings).filter((time: any) => now - time < 2 * 60 * 1000);
+        if (activePings.length === 0 && now - r.createdAt > 2 * 60 * 1000) {
+          shouldDelete = true;
+        }
+      }
+
+      if (shouldDelete) {
+        await remove(ref(db, `rooms/${code}`));
+      }
+    }
+  } catch (error) {
+    console.error("Error limpiando salas fantasma:", error);
+  }
+};
+
 export function useRoom(roomCode: string | null, player: Player | null) {
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Escuchar cambios en la sala
   useEffect(() => {
     if (!roomCode) {
       setRoom(null);
@@ -38,23 +74,17 @@ export function useRoom(roomCode: string | null, player: Player | null) {
     return () => unsubscribe();
   }, [roomCode]);
 
-  // Lógica de inactividad, limpieza automática y latidos (pings)
   useEffect(() => {
     if (!roomCode || !player) return;
 
     const pingRef = ref(db, `rooms/${roomCode}/pings/${player.id}`);
-    
-    // Si el usuario cierra el navegador de golpe, Firebase borra su ping automáticamente
     onDisconnect(pingRef).remove();
 
-    // Enviar un latido cada 30 segundos
     const pingInterval = setInterval(() => {
       set(pingRef, Date.now());
     }, 30000);
-    // Ejecutar el primer ping inmediatamente
     set(pingRef, Date.now());
 
-    // Revisar la inactividad cada 1 minuto
     const checkInterval = setInterval(async () => {
       const roomRef = ref(db, `rooms/${roomCode}`);
       const snapshot = await get(roomRef);
@@ -64,17 +94,14 @@ export function useRoom(roomCode: string | null, player: Player | null) {
       const now = Date.now();
       const lastAct = data.lastActivity || data.createdAt;
 
-      // REGLA 1: Borrar si pasaron 15 minutos sin movimientos
       if (now - lastAct > 15 * 60 * 1000) {
         await remove(roomRef);
         return;
       }
 
-      // REGLA 2: Borrar si pasaron 2 minutos sin jugadores conectados (pings)
       const pings = data.pings || {};
       const activePlayers = Object.values(pings).filter((time: any) => now - time < 2 * 60 * 1000);
       
-      // Se dan 2 minutos de gracia desde que se crea la sala antes de aplicar esta regla
       if (activePlayers.length === 0 && now - data.createdAt > 2 * 60 * 1000) {
         await remove(roomRef);
       }
@@ -87,6 +114,7 @@ export function useRoom(roomCode: string | null, player: Player | null) {
   }, [roomCode, player]);
 
   const createRoom = useCallback(async (gameType: GameType, hostPlayer: Player): Promise<string> => {
+    cleanupGhostRooms(); // Limpiamos la basura antes de crear
     const code = generateRoomCode();
     const now = Date.now();
     const newRoom: Room = {
@@ -107,6 +135,7 @@ export function useRoom(roomCode: string | null, player: Player | null) {
   }, []);
 
   const joinRoom = useCallback(async (code: string, joiningPlayer: Player): Promise<boolean> => {
+    cleanupGhostRooms(); // Limpiamos la basura al unirnos
     const roomRef = ref(db, `rooms/${code}`);
     const snapshot = await get(roomRef);
     
@@ -155,7 +184,6 @@ export function useRoom(roomCode: string | null, player: Player | null) {
     }
   }, [roomCode, player]);
 
-  // NUEVA FUNCIÓN: Abandonar partida
   const abandonGame = useCallback(async () => {
     if (!roomCode || !player) return;
 
@@ -167,14 +195,15 @@ export function useRoom(roomCode: string | null, player: Player | null) {
       const opponent = roomData.players.find(p => p.id !== player.id);
       
       if (opponent && roomData.status === 'playing') {
-        // Hacemos que el oponente gane automáticamente
+        // Declaramos ganador al oponente y nos borramos de la sala
+        const updatedPlayers = roomData.players.filter(p => p.id !== player.id);
         await update(roomRef, {
           status: 'finished',
           'gameData/winner': opponent.id,
-          lastActivity: Date.now()
+          lastActivity: Date.now(),
+          players: updatedPlayers
         });
       } else {
-        // Si no hay oponente o no han empezado, solo sale de la sala
         await leaveRoom();
       }
     }
@@ -197,7 +226,7 @@ export function useRoom(roomCode: string | null, player: Player | null) {
     const roomRef = ref(db, `rooms/${roomCode}`);
     await update(roomRef, { 
       gameData,
-      lastActivity: Date.now() // Refrescamos los 15 min al hacer un movimiento
+      lastActivity: Date.now()
     });
   }, [roomCode]);
 
